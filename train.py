@@ -93,6 +93,7 @@ def train():
     for e in tqdm(range(epochs)):
         loss = 0
         for idx, (example_data, _) in enumerate(train_loader):
+            #tqdm.write(f'batch idx: {idx}')
             style_loss = 0
             optimizer.zero_grad()
             output = gen(example_data)
@@ -106,6 +107,7 @@ def train():
                 style_loss += criterion(gr, gr_style)
             style_loss = style_weight * style_loss
             loss = feature_loss + style_loss
+            tqdm.write(f'batch idx: {idx}, loss: {loss.item()}')
             loss.backward()
             optimizer.step()
 
