@@ -23,6 +23,7 @@ import skimage.segmentation
 from PIL import Image
 
 from generator import Generator
+from transformer import TransformerNet
 from vgg import Vgg16
 from tqdm import tqdm
 
@@ -94,6 +95,8 @@ def train():
         loss = 0
         for idx, (example_data, _) in enumerate(train_loader):
             #tqdm.write(f'batch idx: {idx}')
+            plt.imshow(example_data[0].detach().cpu().numpy().transpose(1, 2, 0))
+            plt.show()
             style_loss = 0
             optimizer.zero_grad()
             output = gen(example_data)
@@ -114,11 +117,36 @@ def train():
     torch.save(gen.state_dict(), f'gen.pt')
     test = Image.open("COCO/data/2015-07-19 20:28:53.jpg")
     test = test.resize((256, 256))
-    test = torch.Tensor(test).transpose(1, 3, 256, 256)
+    test = torchvision.transforms.ToTensorTensor(test)
+    test = test.transpose(1, 3, 256, 256)
     stylized = gen(test)[0].detach().cpu.numpy()
     stylized = stylized.transpose(1, 2, 0)
     plt.imshow(stylized)
     plt.show()
 
+def test():
+    gen = TransformerNet().to(device)
+    gen.load_state_dict(torch.load(f'models/gen.pt', map_location=torch.device('cpu')))
+    gen.eval()
+    test = Image.open("COCO/data/2010-08-10 00:15:25.jpg")
+    test = test.resize((256, 256))
+    transform=torchvision.transforms.Compose(
+        [torchvision.transforms.ToTensor()]
+    )
+    test = transform(test)
+    test = test.reshape(1, 3, 256, 256)
+    test = (test - torch.min(test))
+    test = test / torch.max(test)
+    
+    stylized = gen(test)[0].detach().cpu().numpy()
+    arr = stylized.transpose(1, 2, 0)
+    new_arr = ((arr - arr.min()) * (1/(arr.max() - arr.min())))
+    print(new_arr)
+    print(np.amin(new_arr))
+    print(np.amax(new_arr))
+    plt.imshow(new_arr)
+    plt.show()
+
 if __name__ == '__main__':
-    train()
+    #train()
+    test()
