@@ -27,47 +27,50 @@ class Generator(nn.Module):
         self.res4 = ResidualBlock(128)
         self.res5 = ResidualBlock(128)
         
-        self.conv4 = nn.ConvTranspose2d(128, 64, kernel_size=3, stride=1)
+        self.conv4 = nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1)
         self.bn4 = nn.BatchNorm2d(64, affine=True)
-        self.conv5 = nn.ConvTranspose2d(64, 32, kernel_size=3, stride=1)
+        self.conv5 = nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1, output_padding=1)
         self.bn5 = nn.BatchNorm2d(32, affine=True)
-        reflection_padding = 4
-        self.reflection_pad = nn.ReflectionPad2d(reflection_padding)
-        self.conv2d = nn.Conv2d(32, 3, kernel_size=9, stride=1)
+        reflection_padding_4 = 4
+        self.reflection_pad_4 = nn.ReflectionPad2d(reflection_padding_4)
+        reflection_padding_1 = 1
+        self.reflection_pad_1 = nn.ReflectionPad2d(reflection_padding_1)
+        self.conv6 = nn.Conv2d(32, 3, kernel_size=9, stride=1)
 
     def forward(self, x):
-        print(x.shape)
+        # print(x.shape)
+        x = self.reflection_pad_4(x)
         x = self.conv1(x)
         x = self.bn1(x)
         x = F.relu(x)
+        x = self.reflection_pad_1(x)
         x = self.conv2(x)
         x = self.bn2(x)
         x = F.relu(x)
+        x = self.reflection_pad_1(x)
         x = self.conv3(x)
         x = self.bn3(x)
         x = F.relu(x)
-
+        # print(x.shape)
         x = self.res1(x)
-
         x = self.res2(x)
-        
         x = self.res3(x)
-        
         x = self.res4(x)
-        
         x = self.res5(x)
-        
-        x = self.res6(x)
-
+        # print(x.shape)
+        # x = self.reflection_pad_1(x)
         x = self.conv4(x)
         x = self.bn4(x)
         x = F.relu(x)
-
+        # print(x.shape)
+        # x = self.reflection_pad_1(x)
         x = self.conv5(x)
         x = self.bn5(x)
         x = F.relu(x)
-
+        # print(x.shape)
+        x = self.reflection_pad_4(x)
         x = self.conv6(x)
+        # print(x.shape)
         return x
 
 class ResidualBlock(torch.nn.Module):

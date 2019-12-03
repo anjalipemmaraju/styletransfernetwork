@@ -20,6 +20,7 @@ import skimage.io
 import skimage.filters
 import skimage.morphology
 import skimage.segmentation
+from PIL import Image
 
 from generator import Generator
 from vgg import Vgg16
@@ -29,20 +30,23 @@ use_cuda = torch.cuda.is_available()
 device = torch.device('cuda:0' if use_cuda else 'cpu')
 
 def normalize(x):
-    mean=[0.485,0.456,0.406]
-    std=[0.229,0.224,0.225]
-    x = np.divide(np.subtract(x, mean), std)
+    mean = [0.406, 0.485,0.456]
+    std = [0.225, 0.229,0.224]
+    mean = torch.Tensor(mean).reshape(1, -1, 1, 1)
+    std = torch.Tensor(std).reshape(1, -1, 1, 1)
+    x = (x - mean) / std
     return x
 
 def gram(input):
     grams = []
     num, channel, h, w = input.shape
-    for im in num:
-        t = input[num].detach().cpu().numpy()
+    for im in range(num):
+        t = input[im].detach().cpu().numpy()
         t = t.reshape(channel, h*w)
-        g = (t * t.T) / (channel * h * w)
+        g = np.matmul(t, t.T) / (channel * h * w)
         grams.append(g)
-    return g
+    gr = torch.Tensor(grams)
+    return gr
         
 
 def train():
@@ -51,7 +55,7 @@ def train():
     content_weight = 1e-5
     style_weight = 5e-10
     batch_size = 4
-    data_path = 'data/'
+    data_path = 'COCO/'
     transform=torchvision.transforms.Compose(
         [torchvision.transforms.Resize(256, 256),
         torchvision.transforms.CenterCrop((256, 256)),
@@ -59,7 +63,7 @@ def train():
         ])
     train_dataset = torchvision.datasets.ImageFolder(
         root=data_path,
-        transform=torchvision.transforms.ToTensor()
+        transform=transform
     )
 
     train_loader = torch.utils.data.DataLoader(
@@ -75,41 +79,41 @@ def train():
 
     vgg = Vgg16(requires_grad=False).to(device)
 
-    style = skimage.img_as_float(skimage.io.imread("rickmorty-style.jpg"))
-    style = torch.FloatTensor(style).to(device)
-    normalized_style = normalize(style)
+    style = Image.open("rickmorty-style.jpg")
+    style = style.resize((256, 256))
+    style = transform(style).to(device)
+    normalized_style = normalize(style.reshape(1, 3, style.shape[1], style.shape[2]))
+    normalized_style = (normalized_style - torch.min(normalized_style))
+    normalized_style = normalized_style / torch.max(normalized_style)
 
-    #calculate gram of style
+    normalized_style = normalized_style.repeat(batch_size, 1, 1, 1).to(device)
     features_style = vgg(normalized_style)
-    gr_norm = []
-    for feat in features_style:
-        gr_norm.append(gram(feat))
-    
-    for e in tqdm(epochs):
+
+    gr_norm = [gram(ft) for ft in features_style]
+    for e in tqdm(range(epochs)):
         loss = 0
         for idx, (example_data, _) in enumerate(train_loader):
             style_loss = 0
             optimizer.zero_grad()
             output = gen(example_data)
             normalized_output = normalize(output)
-            
-            features_y = vgg(normalized_style)
             features_x = vgg(normalized_output)
 
-            feature_loss = content_weight * criterion(features_y['relu2_2'], features_x['relu2_2'])
+            feature_loss = content_weight * criterion(features_style.relu2_2, features_x.relu2_2)
 
-            for ft, gr_style in zip(features_y, gr_norm):
+            for ft, gr_style in zip(features_x, gr_norm):
                 gr = gram(ft)
                 style_loss += criterion(gr, gr_style)
-
             style_loss = style_weight * style_loss
             loss = feature_loss + style_loss
             loss.backward()
             optimizer.step()
 
     torch.save(gen.state_dict(), f'gen.pt')
-    test = skimage.img_as_float(skimage.io.imread("testimg.jpg"))
-    stylized = gen(test).detach().cpu.numpy()
+    test = Image.open("COCO/data/2015-07-19 20:28:53.jpg")
+    test = test.resize((256, 256))
+    test = torch.Tensor(test).transpose(1, 3, 256, 256)
+    stylized = gen(test)[0].detach().cpu.numpy()
     stylized = stylized.transpose(1, 2, 0)
     plt.imshow(stylized)
     plt.show()
