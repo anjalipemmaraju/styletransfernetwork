@@ -46,8 +46,8 @@ def gram(input):
     return gram
         
 
-def train():
-    epochs = 2
+def train(restore_path=None):
+    epochs = 1
     lr = 1e-3
     content_weight = 1e5
     style_weight = 1e10
@@ -57,18 +57,14 @@ def train():
     std = [0.229,0.224, 0.225]
     mean = torch.Tensor(mean).reshape(1, -1, 1, 1).to(device)
     std = torch.Tensor(std).reshape(1, -1, 1, 1).to(device)
-    print(device)
     def normalize(x):
+        x = x.div(255)
         return (x - mean) / std
-
-    image_normalize = torchvision.transforms.Normalize(
-            mean=[0.485,0.456, 0.406],
-            std = [0.229,0.224, 0.225]
-        ) 
-    transform=torchvision.transforms.Compose(
-        [torchvision.transforms.Resize((256, 256)),
+    transform=torchvision.transforms.Compose([
+        torchvision.transforms.Resize((256, 256)),
         torchvision.transforms.CenterCrop((256, 256)),
-        torchvision.transforms.ToTensor()
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Lambda(lambda x:x.mul(255))
     ])
     train_dataset = torchvision.datasets.ImageFolder(
         root=data_path,
@@ -84,19 +80,25 @@ def train():
     )
 
     gen = Generator().to(device)
+    if restore_path is not None:
+        gen.load_state_dict(torch.load(restore_path))
     optimizer = torch.optim.Adam(gen.parameters(), lr=lr)
     criterion = torch.nn.MSELoss()
 
     vgg = Vgg16(requires_grad=False).to(device)
 
     # compute style features and gram matrix
+    style_transform = torchvision.transforms.Compose([
+        torchvision.transforms.Resize((256,256)),
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Lambda(lambda x:x.mul(255))
+    ])
     style = Image.open("rickmorty-style.jpg")
-    style = style.resize((256, 256))
-    normalized_style = transform(style)
-    normalized_style = normalized_style.reshape(1, 3, normalized_style.shape[1], normalized_style.shape[2])
-    normalized_style = normalized_style.repeat(batch_size, 1, 1, 1)
-    normalized_style = normalized_style.to(device)
-    features_style = vgg(normalized_style)
+    style = style_transform(style)
+    style = style.to(device)
+    style = normalize(style)
+    style = style.repeat(batch_size, 1, 1, 1)
+    features_style = vgg(style)
     gr_norm = [gram(ft) for ft in features_style]
     for e in tqdm(range(epochs)):
         loss = 0
@@ -106,17 +108,14 @@ def train():
         for idx, (example_data, _) in enumerate(train_loader):
             start = time.time()
             optimizer.zero_grad()
-            example_data = example_data.mul(255)
             example_data = example_data.to(device)
             output = gen(example_data)
-            output = output.div(255)
-            normalized_output = normalize(output)
-            features_output = vgg(normalized_output)
-            example_data = example_data.div(255)
-            features_content = vgg(normalize(example_data))
+            output = normalize(output)
+            example_data = normalize(example_data)
+            features_output = vgg(output)
+            features_content = vgg(example_data)
             content_loss = content_weight * criterion(features_output.relu2_2, features_content.relu2_2)
             style_loss = 0
-
             for ft, gr_style in zip(features_output, gr_norm):
                 gr = gram(ft)
                 style_loss += criterion(gr, gr_style)
@@ -128,12 +127,14 @@ def train():
             agg_style_loss += style_loss.item()
             if idx % 500 == 0:
                 mesg = "Epoch {}:\t[{}/{}]\tcontent: {:.6f}\tstyle: {:.6f}\ttotal: {:.6f}".format(
-                        e + 1, idx + 1, len(train_dataset),
+                        e + 1, (idx + 1)*4, len(train_dataset),
                         agg_content_loss / (idx + 1),
                         agg_style_loss / (idx + 1),
                         (agg_content_loss + agg_style_loss) / (idx + 1)
                     )
                 tqdm.write(mesg)
+            if idx % 2000 == 1999:
+                torch.save(gen.state_dict(), f'models/gen_ep{e}_b{idx}.pt')
             optimizer.step()
 
 
@@ -171,5 +172,6 @@ def test():
     plt.show()
 
 if __name__ == '__main__':
-    train()
+    restore_path = 'models/gen_ep0_b19999.pt'
+    train(restore_path)
     #test()
