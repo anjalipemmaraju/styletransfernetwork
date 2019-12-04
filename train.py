@@ -11,6 +11,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches
+import time
 
 import skimage
 import skimage.measure
@@ -23,30 +24,26 @@ import skimage.segmentation
 from PIL import Image
 
 from generator import Generator
-from transformer import TransformerNet
+#from transformer import TransformerNet
 from vgg import Vgg16
 from tqdm import tqdm
 
 use_cuda = torch.cuda.is_available()
 device = torch.device('cuda:0' if use_cuda else 'cpu')
-def normalize(x):
-    mean = [0.485,0.456, 0.406]
-    std = [0.229,0.224, 0.225]
-    mean = torch.Tensor(mean).reshape(1, -1, 1, 1)
-    std = torch.Tensor(std).reshape(1, -1, 1, 1)
-    x = (x - mean) / std
-    return x
 
 def gram(input):
-    grams = []
-    num, channel, h, w = input.shape
-    for im in range(num):
-        t = input[im].detach().cpu().numpy()
+    nb, nch, h, w = input.shape
+    features = input.view(nb, nch, h*w)
+    features_t = features.transpose(1,2)
+    gram = features.bmm(features_t/(nch*h*w))
+    '''
+    for im in range(num):.b
         t = t.reshape(channel, h*w)
         g = np.matmul(t, t.T) / (channel * h * w)
         grams.append(g)
     gr = torch.Tensor(grams)
-    return gr
+    '''
+    return gram
         
 
 def train():
@@ -56,15 +53,22 @@ def train():
     style_weight = 1e10
     batch_size = 4
     data_path = 'COCO/'
+    mean = [0.485,0.456, 0.406]
+    std = [0.229,0.224, 0.225]
+    mean = torch.Tensor(mean).reshape(1, -1, 1, 1).to(device)
+    std = torch.Tensor(std).reshape(1, -1, 1, 1).to(device)
+    print(device)
+    def normalize(x):
+        return (x - mean) / std
+
     image_normalize = torchvision.transforms.Normalize(
             mean=[0.485,0.456, 0.406],
             std = [0.229,0.224, 0.225]
         ) 
     transform=torchvision.transforms.Compose(
-        [torchvision.transforms.Resize(256, 256),
+        [torchvision.transforms.Resize((256, 256)),
         torchvision.transforms.CenterCrop((256, 256)),
-        torchvision.transforms.ToTensor(),
-        image_normalize
+        torchvision.transforms.ToTensor()
     ])
     train_dataset = torchvision.datasets.ImageFolder(
         root=data_path,
@@ -75,7 +79,8 @@ def train():
         train_dataset,
         batch_size=batch_size,
         num_workers=16,
-        shuffle=True
+        shuffle=True,
+        pin_memory=True
     )
 
     gen = Generator().to(device)
@@ -97,20 +102,26 @@ def train():
         loss = 0
         agg_content_loss = 0
         agg_style_loss = 0
+        avg_time = 0
         for idx, (example_data, _) in enumerate(train_loader):
-            #tqdm.write(f'batch idx: {idx}')
+            start = time.time()
             optimizer.zero_grad()
-            example_data = example_data * 255
-            output = gen(example_data.to(device))
-            normalized_output = output/255.0
+            example_data = example_data.mul(255)
+            example_data = example_data.to(device)
+            output = gen(example_data)
+            output = output.div(255)
+            normalized_output = normalize(output)
             features_output = vgg(normalized_output)
+            example_data = example_data.div(255)
             features_content = vgg(normalize(example_data))
             content_loss = content_weight * criterion(features_output.relu2_2, features_content.relu2_2)
             style_loss = 0
+
             for ft, gr_style in zip(features_output, gr_norm):
                 gr = gram(ft)
                 style_loss += criterion(gr, gr_style)
             style_loss = style_weight * style_loss
+
             loss = content_loss + style_loss
             loss.backward()
             agg_content_loss += content_loss.item()
@@ -124,6 +135,7 @@ def train():
                     )
                 tqdm.write(mesg)
             optimizer.step()
+
 
     torch.save(gen.state_dict(), f'gen.pt')
     test = Image.open("COCO/data/2015-07-19 20:28:53.jpg")
