@@ -38,7 +38,7 @@ def transform(data_path):
     )
 
 
-def train():
+def train(start_epoch=-1):
     epochs = 80
     lr = 1e-3
     data_path = "COCO"
@@ -89,37 +89,38 @@ def train():
 
     
     model_SR = SuperResolution().to(device)
+    if start_epoch != -1:
+        model_SR.load_state_dict(torch.load(f'models/SR_ep{start_epoch}.pt'))
     optimizer = torch.optim.Adam(model_SR.parameters(), lr=lr)
     criterion = torch.nn.MSELoss()
 
     vgg = Vgg16(requires_grad=False).to(device)
 
-    for e in tqdm(range(epochs)):
+    for e in tqdm(range(start_epoch+1, epochs)):
         loss = 0
         total_loss = 0
         for idx, (coarse_data, fine_data),  in enumerate(zip(coarse_loader, fine_loader)):
-            if idx < 2500:
-                coarse_data = coarse_data[0]
-                fine_data = fine_data[0]
-                #coarse = coarse_transform(coarse_data.clone())
-                coarse = coarse_data.to(device)
-                fine = fine_data.to(device)
-                fine = normalize(fine)
-                optimizer.zero_grad()
-                coarse_output = model_SR(coarse)
-                coarse_output = normalize(coarse_output)
-                coarse_features = vgg(coarse_output)
-                fine_features = vgg(fine)
-                #print(fine_features.relu2_2.shape)
-                #print(coarse_features.relu2_2.shape)
-                loss = criterion(coarse_features.relu2_2, fine_features.relu2_2)
-                loss.backward()
-                total_loss += loss.item()
-                optimizer.step()
-                if idx % 100 == 0:
-                    tqdm.write(f'epoch {e} \t batch {idx} \t total loss = {total_loss}')
-        torch.save(model_SR.state_dict(), f'models/SR_ep{e}.pt')
+            coarse_data = coarse_data[0]
+            fine_data = fine_data[0]
+            #coarse = coarse_transform(coarse_data.clone())
+            coarse = coarse_data.to(device)
+            fine = fine_data.to(device)
+            fine = normalize(fine)
+            optimizer.zero_grad()
+            coarse_output = model_SR(coarse)
+            coarse_output = normalize(coarse_output)
+            coarse_features = vgg(coarse_output)
+            fine_features = vgg(fine)
+            #print(fine_features.relu2_2.shape)
+            #print(coarse_features.relu2_2.shape)
+            loss = criterion(coarse_features.relu2_2, fine_features.relu2_2)
+            loss.backward()
+            total_loss += loss.item()
+            optimizer.step()
+            if idx % 100 == 0:
+                tqdm.write(f'epoch {e} \t batch {idx} \t avg batch loss = {total_loss/(idx+1)}')
+        torch.save(model_SR.state_dict(), f'models/SR_ep{e+1}.pt')
 
 if __name__ == '__main__':
     #transform()
-     train()
+     train(start_epoch=1)
