@@ -85,21 +85,22 @@ def train():
     for e in tqdm(range(epochs)):
         loss = 0
         for idx, (data, _) in enumerate(train_loader):
-            coarse = coarse_transform(data.clone())
-            coarse = coarse.to(device)
-            fine = fine_transform(data.clone())
-            fine = fine.to(device)
-            fine = normalize(fine)
-            optimizer.zero_grad()
-            coarse_output = model_SR(coarse)
-            coarse_output = normalize(coarse_output)
-            coarse_features = vgg(coarse_output)
-            fine_features = vgg(fine)
-            loss = criterion(coarse_features.relu2_2, fine_features.relu2_2)
-            loss.backward()
-            optimizer.step()
-            if idx % 100 == 0:
-                tqdm.write(f'epoch {e} \t batch {idx} \t loss = {loss.item()}')
+            if idx < 2500:
+                coarse = coarse_transform(data.clone())
+                coarse = coarse.to(device)
+                fine = fine_transform(data.clone())
+                fine = fine.to(device)
+                fine = normalize(fine)
+                optimizer.zero_grad()
+                coarse_output = model_SR(coarse)
+                coarse_output = normalize(coarse_output)
+                coarse_features = vgg(coarse_output)
+                fine_features = vgg(fine)
+                loss = criterion(coarse_features.relu2_2, fine_features.relu2_2)
+                loss.backward()
+                optimizer.step()
+                if idx % 100 == 0:
+                    tqdm.write(f'epoch {e} \t batch {idx} \t loss = {loss.item()}')
         torch.save(model_SR.state_dict(), f'models/SR_ep{e}.pt')
 
 if __name__ == '__main__':
