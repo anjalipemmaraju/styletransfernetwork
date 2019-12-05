@@ -1,4 +1,5 @@
 import torch
+import glob
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
@@ -176,7 +177,8 @@ def test():
 
 def convert(video_path):
     gen = Generator().to(device)
-    gen.load_state_dict(torch.load(f'models/mosaic_gen_all.pt', map_location=torch.device('cpu')))
+    style = 'mosaic'
+    gen.load_state_dict(torch.load(f'models/{style}_gen_all.pt', map_location=torch.device('cpu')))
     gen.eval()
 
     vidcap = cv2.VideoCapture(video_path)
@@ -207,6 +209,12 @@ def convert(video_path):
         success,test = vidcap.read()
     print("done stylizing")
     frames = [] # for storing the generated images
+    np.save(f'{style}_frames.npy', frames)
+    out = cv2.VideoWriter(f'{style}_dogvid.avi',cv2.VideoWriter_fourcc(*'DIVX'), 15, size)
+    for frame in frames:
+        out.write(frame)
+    out.release()
+    '''
     fig = plt.figure()
     for i in range(len(converted_video_frames)):
         frames.append([plt.imshow(converted_video_frames[i], animated=True)])
@@ -216,6 +224,7 @@ def convert(video_path):
     plt.axis('off')
     ani.save('mosaic_dogvid.mp4')
     plt.show()
+    '''
 
 
 if __name__ == '__main__':
