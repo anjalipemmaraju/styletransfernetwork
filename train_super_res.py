@@ -23,7 +23,7 @@ import skimage.morphology
 import skimage.segmentation
 from PIL import Image
 
-from superres import superres
+from superres import SuperResolution
 #from transformer import TransformerNet
 from vgg import Vgg16
 from tqdm import tqdm
@@ -31,15 +31,17 @@ from tqdm import tqdm
 use_cuda = torch.cuda.is_available()
 device = torch.device('cuda:0' if use_cuda else 'cpu')
 
-def transform(batch):
-    for im in batch:
-        im = skimage.img_as_float(skimage.io.imread(os.path.join('images', img)))
-        im = skimage.transform.resize(skimage.filters.gaussian(im1), (72, 72), order=3)
+def transform(data_path):
+    dataset = torchvision.datasets.ImageFolder(
+        root=data_path,
+        transform=transform
+    )
+
 
 def train():
     epochs = 80
     lr = 1e-3
-    data_path = " "
+    data_path = "data"
     batch_size = 4
 
     mean = [0.485,0.456, 0.406]
@@ -50,14 +52,20 @@ def train():
         x = x.div(255)
         return (x - mean) / std
 
-    transform = torchvision.transforms.Compose([
+    coarse_transform = torchvision.transforms.Compose([
+        torchvision.transforms.Resize((72,72)),
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Lambda(lambda x:x.mul(255))
+    ])
+    fine_transform = torchvision.transforms.Compose([
+        torchvision.transforms.Resize((288,288)),
         torchvision.transforms.ToTensor(),
         torchvision.transforms.Lambda(lambda x:x.mul(255))
     ])
 
     train_dataset = torchvision.datasets.ImageFolder(
         root=data_path,
-        transform=transform
+        transform=torchvision.transforms.ToTensor()
     )
 
     train_loader = torch.utils.data.DataLoader(
@@ -67,24 +75,33 @@ def train():
         pin_memory=True
     )
 
-    model_SR = superres().to(device)
+    
+    model_SR = SuperResolution().to(device)
     optimizer = torch.optim.Adam(model_SR.parameters(), lr=lr)
-    criterion = torch.nn.MSE()
+    criterion = torch.nn.MSELoss()
 
     vgg = Vgg16(requires_grad=False).to(device)
 
     for e in tqdm(range(epochs)):
         loss = 0
-        for idx, (example_data, _) in enumerate(train_loader):
+        for idx, (data, _) in enumerate(train_loader):
+            coarse = coarse_transform(data.clone())
+            coarse = coarse.to(device)
+            fine = fine_transform(data.clone())
+            fine = fine.to(device)
+            fine = normalize(fine)
             optimizer.zero_grad()
-            example_data = example_data.to(device)
-            output = model_SR(example_data)
-            output = normalize(output)
-
-
-
-
+            coarse_output = model_SR(coarse)
+            coarse_output = normalize(coarse_output)
+            coarse_features = vgg(coarse_output)
+            fine_features = vgg(fine)
+            loss = criterion(coarse_features.relu2_2, fine_features.relu2_2)
+            loss.backward()
+            optimizer.step()
+            if idx % 100 == 0:
+                tqdm.write(f'epoch {e} \t batch {idx} \t loss = {loss.item()}')
+        torch.save(model_SR.state_dict(), f'models/SR_ep{e}.pt')
 
 if __name__ == '__main__':
-    transform()
-    # train()
+    #transform()
+     train()

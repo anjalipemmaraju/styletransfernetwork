@@ -14,8 +14,9 @@ import matplotlib.patches
 from generator import ResidualBlock
 from generator import ConvLayer
 
-class superres(nn.Module):
+class SuperResolution(nn.Module):
     def __init__(self):
+        super(SuperResolution, self).__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=9, stride=1)
         self.b1 = nn.BatchNorm2d(64, affine=True)
         
