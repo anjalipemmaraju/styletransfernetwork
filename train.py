@@ -176,20 +176,22 @@ def test():
 
 def convert(video_path):
     gen = Generator().to(device)
-    gen.load_state_dict(torch.load(f'models/vangogh_gen_all.pt', map_location=torch.device('cpu')))
+    gen.load_state_dict(torch.load(f'models/mosaic_gen_all.pt', map_location=torch.device('cpu')))
     gen.eval()
 
     vidcap = cv2.VideoCapture(video_path)
     success,test = vidcap.read()
     count = 0
     transform=torchvision.transforms.Compose([
+        torchvision.transforms.CenterCrop((360, 360)), 
+        torchvision.transforms.Resize((256,256)),
         torchvision.transforms.ToTensor()]
     )
 
     converted_video_frames = []
     while success:
         test = Image.fromarray(test*255)
-        test = test.resize((256, 256))
+        # test = test.resize((256, 256))
         test = transform(test) 
         print('Read a new frame: ', success)
         count += 1
@@ -209,9 +211,10 @@ def convert(video_path):
     for i in range(len(converted_video_frames)):
         frames.append([plt.imshow(converted_video_frames[i], animated=True)])
 
-    ani = animation.ArtistAnimation(fig, frames, interval=50, blit=True,
+    ani = animation.ArtistAnimation(fig, frames, interval=33.33, blit=True,
                                     repeat_delay=1000)
-    # ani.save('movie.mp4')
+    plt.axis('off')
+    ani.save('mosaic_dogvid.mp4')
     plt.show()
 
 
