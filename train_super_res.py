@@ -41,7 +41,7 @@ def transform(data_path):
 def train():
     epochs = 80
     lr = 1e-3
-    data_path = "data"
+    data_path = "COCO"
     batch_size = 4
 
     mean = [0.485,0.456, 0.406]
@@ -63,17 +63,29 @@ def train():
         torchvision.transforms.Lambda(lambda x:x.mul(255))
     ])
 
-    train_dataset = torchvision.datasets.ImageFolder(
+    fine_dataset = torchvision.datasets.ImageFolder(
         root=data_path,
-        transform=torchvision.transforms.ToTensor()
+        transform=fine_transform
     )
 
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset,
+    coarse_dataset = torchvision.datasets.ImageFolder(
+        root=data_path,
+        transform=coarse_transform
+    )
+
+    coarse_loader = torch.utils.data.DataLoader(
+        coarse_dataset,
         batch_size=batch_size,
-        num_workers=16,
+        num_workers=8,
         pin_memory=True
     )
+
+    fine_loader = torch.utils.data.DataLoader(
+            fine_dataset,
+            batch_size=batch_size,
+            num_workers=8,
+            pin_memory=True
+    )   
 
     
     model_SR = SuperResolution().to(device)
@@ -84,23 +96,28 @@ def train():
 
     for e in tqdm(range(epochs)):
         loss = 0
-        for idx, (data, _) in enumerate(train_loader):
+        total_loss = 0
+        for idx, (coarse_data, fine_data),  in enumerate(zip(coarse_loader, fine_loader)):
             if idx < 2500:
-                coarse = coarse_transform(data.clone())
-                coarse = coarse.to(device)
-                fine = fine_transform(data.clone())
-                fine = fine.to(device)
+                coarse_data = coarse_data[0]
+                fine_data = fine_data[0]
+                #coarse = coarse_transform(coarse_data.clone())
+                coarse = coarse_data.to(device)
+                fine = fine_data.to(device)
                 fine = normalize(fine)
                 optimizer.zero_grad()
                 coarse_output = model_SR(coarse)
                 coarse_output = normalize(coarse_output)
                 coarse_features = vgg(coarse_output)
                 fine_features = vgg(fine)
+                #print(fine_features.relu2_2.shape)
+                #print(coarse_features.relu2_2.shape)
                 loss = criterion(coarse_features.relu2_2, fine_features.relu2_2)
                 loss.backward()
+                total_loss += loss.item()
                 optimizer.step()
                 if idx % 100 == 0:
-                    tqdm.write(f'epoch {e} \t batch {idx} \t loss = {loss.item()}')
+                    tqdm.write(f'epoch {e} \t batch {idx} \t total loss = {total_loss}')
         torch.save(model_SR.state_dict(), f'models/SR_ep{e}.pt')
 
 if __name__ == '__main__':

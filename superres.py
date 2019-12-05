@@ -17,6 +17,7 @@ from generator import ConvLayer
 class SuperResolution(nn.Module):
     def __init__(self):
         super(SuperResolution, self).__init__()
+        self.refpad4 = nn.ReflectionPad2d(4)
         self.conv1 = nn.Conv2d(3, 64, kernel_size=9, stride=1)
         self.b1 = nn.BatchNorm2d(64, affine=True)
         
@@ -31,8 +32,9 @@ class SuperResolution(nn.Module):
         self.conv4 = nn.Conv2d(64, 3, kernel_size=9, stride=1)
     
     def forward(self, x):
+        x = self.refpad4(x)
         x = self.conv1(x)
-        print(x.shape)
+        #print(x.shape)
         x = self.b1(x)
 
         x = self.res1(x)
@@ -40,15 +42,16 @@ class SuperResolution(nn.Module):
         x = self.res3(x)
         x = self.res4(x)
 
-        print(x.shape)
+        #print(x.shape)
 
         x = self.conv2(x)
         x = self.bn2(x)
-        print(x.shape)
+        #print(x.shape)
 
         x = self.conv3(x)
         x = self.bn3(x)
-        print(x.shape)
-
+        #print(x.shape)
+        x = self.refpad4(x)
         x = self.conv4(x)
+        #print(x.shape)
         return x
