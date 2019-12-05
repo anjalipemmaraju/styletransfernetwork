@@ -121,6 +121,27 @@ def train(start_epoch=-1):
                 tqdm.write(f'epoch {e} \t batch {idx} \t avg batch loss = {total_loss/(idx+1)}')
         torch.save(model_SR.state_dict(), f'models/SR_ep{e+1}.pt')
 
+def test():
+    gen = SuperResolution().to(device)
+    gen.load_state_dict(torch.load(f'models/SR_ep63.pt', map_location=torch.device('cpu')))
+    gen.eval()
+    test = Image.open("nature.jpg")
+    test = test.resize((256, 256))
+    transform=torchvision.transforms.Compose([
+        torchvision.transforms.ToTensor()]
+    )
+    test = transform(test)
+    test = test.reshape(1, 3, 256, 256)
+    test = (test - torch.min(test))
+    test = test / torch.max(test)
+    test = test * 255
+    stylized = gen(test)[0].detach().cpu().numpy()
+    arr = stylized.transpose(1, 2, 0)
+    new_arr = ((arr - arr.min()) * (1/(arr.max() - arr.min())))
+    print(new_arr.max())
+    plt.imshow(new_arr)
+    plt.show()
 if __name__ == '__main__':
     #transform()
-     train(start_epoch=1)
+    #train(start_epoch=1)
+    test()

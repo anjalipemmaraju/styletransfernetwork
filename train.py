@@ -22,6 +22,8 @@ import skimage.filters
 import skimage.morphology
 import skimage.segmentation
 from PIL import Image
+import cv2
+import matplotlib.animation as animation
 
 from generator import Generator
 #from transformer import TransformerNet
@@ -148,14 +150,16 @@ def train(restore_path=None):
 
 def test():
     gen = Generator().to(device)
-    gen.load_state_dict(torch.load(f'models/rm_ep1_b19999.pt', map_location=torch.device('cpu')))
+    gen.load_state_dict(torch.load(f'models/rain-princess_gen_all.pt', map_location=torch.device('cpu')))
     gen.eval()
-    test = Image.open("amber.jpg")
+    test = Image.open("grr.jpg")
     test = test.resize((256, 256))
     transform=torchvision.transforms.Compose([
         torchvision.transforms.ToTensor()]
     )
     test = transform(test)
+    test = test[:3]
+    print(test.shape)
     test = test.reshape(1, 3, 256, 256)
     test = (test - torch.min(test))
     test = test / torch.max(test)
@@ -169,7 +173,50 @@ def test():
     plt.imshow(new_arr)
     plt.show()
 
+
+def convert(video_path):
+    gen = Generator().to(device)
+    gen.load_state_dict(torch.load(f'models/vangogh_gen_all.pt', map_location=torch.device('cpu')))
+    gen.eval()
+
+    vidcap = cv2.VideoCapture(video_path)
+    success,test = vidcap.read()
+    count = 0
+    transform=torchvision.transforms.Compose([
+        torchvision.transforms.ToTensor()]
+    )
+
+    converted_video_frames = []
+    while success:
+        test = Image.fromarray(test*255)
+        test = test.resize((256, 256))
+        test = transform(test) 
+        print('Read a new frame: ', success)
+        count += 1
+        test = test.reshape(1, 3, 256, 256)
+        test = (test - torch.min(test))
+        test = test / torch.max(test)
+        test = test * 255
+        stylized = gen(test)[0].detach().cpu().numpy()
+        arr = stylized.transpose(1, 2, 0)
+        new_arr = ((arr - arr.min()) * (1/(arr.max() - arr.min())))
+        converted_video_frames.append(new_arr)
+
+        success,test = vidcap.read()
+    print("done stylizing")
+    frames = [] # for storing the generated images
+    fig = plt.figure()
+    for i in range(len(converted_video_frames)):
+        frames.append([plt.imshow(converted_video_frames[i], animated=True)])
+
+    ani = animation.ArtistAnimation(fig, frames, interval=50, blit=True,
+                                    repeat_delay=1000)
+    # ani.save('movie.mp4')
+    plt.show()
+
+
 if __name__ == '__main__':
     restore_path = 'models/gen_ep0_b19999.pt'
     #train(restore_path)
-    test()
+    #test()
+    convert('videos/dogvid.mp4')
