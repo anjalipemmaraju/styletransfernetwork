@@ -1,9 +1,8 @@
 from collections import namedtuple
-
 import torch
 from torchvision import models
-
-
+''' NOT MINE: adapted from https://github.com/pytorch/examples/tree/master/fast_neural_style
+'''
 class Vgg16(torch.nn.Module):
     def __init__(self, requires_grad=False):
         super(Vgg16, self).__init__()

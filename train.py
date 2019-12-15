@@ -27,28 +27,45 @@ import cv2
 import matplotlib.animation as animation
 
 from generator import Generator
-#from transformer import TransformerNet
 from vgg import Vgg16
 from tqdm import tqdm
 
 use_cuda = torch.cuda.is_available()
 device = torch.device('cuda:0' if use_cuda else 'cpu')
-
+# mean and std of vgg trained input
+mean = [0.485,0.456, 0.406]
+std = [0.229,0.224, 0.225]
+''' gram matrix function
+Input:
+    input (torch tensor): data to take the gram matrix of
+Output:
+    gram (matrix): gram matrix of input data
+'''
 def gram(input):
     nb, nch, h, w = input.shape
     features = input.view(nb, nch, h*w)
     features_t = features.transpose(1,2)
     gram = features.bmm(features_t/(nch*h*w))
-    '''
-    for im in range(num):.b
-        t = t.reshape(channel, h*w)
-        g = np.matmul(t, t.T) / (channel * h * w)
-        grams.append(g)
-    gr = torch.Tensor(grams)
-    '''
     return gram
-        
 
+''' normalize input data based on the vgg train data discribution
+Input:
+    x (torch tensor): data to be normalized
+Output:
+    normalized data (torch tensor)
+'''
+def normalize(x):
+    global mean
+    global std
+    x = x.div(255)
+    return (x - mean) / std
+
+''' function to train the generator
+Input:
+    restore_path (string): path to old model that you want to keep training
+Output:
+    None
+'''
 def train(restore_path=None):
     epochs = 1
     lr = 1e-3
@@ -56,13 +73,12 @@ def train(restore_path=None):
     style_weight = 1e10
     batch_size = 4
     data_path = 'COCO/'
-    mean = [0.485,0.456, 0.406]
-    std = [0.229,0.224, 0.225]
+
+    global mean
+    global std
     mean = torch.Tensor(mean).reshape(1, -1, 1, 1).to(device)
     std = torch.Tensor(std).reshape(1, -1, 1, 1).to(device)
-    def normalize(x):
-        x = x.div(255)
-        return (x - mean) / std
+
     transform=torchvision.transforms.Compose([
         torchvision.transforms.Resize((256, 256)),
         torchvision.transforms.CenterCrop((256, 256)),
@@ -74,6 +90,7 @@ def train(restore_path=None):
         transform=transform
     )
 
+    # load data after transforming to correct size and pixel values
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=batch_size,
@@ -96,13 +113,19 @@ def train(restore_path=None):
         torchvision.transforms.ToTensor(),
         torchvision.transforms.Lambda(lambda x:x.mul(255))
     ])
+
+    # open style image and turn into batch-sized tensor
     style = Image.open("rickmorty-style.jpg")
     style = style_transform(style)
     style = style.to(device)
     style = normalize(style)
     style = style.repeat(batch_size, 1, 1, 1)
     features_style = vgg(style)
+
+    # compute gram of vgg output of style image tensor
     gr_norm = [gram(ft) for ft in features_style]
+
+    # start train loop
     for e in tqdm(range(epochs)):
         loss = 0
         agg_content_loss = 0
@@ -112,11 +135,19 @@ def train(restore_path=None):
             start = time.time()
             optimizer.zero_grad()
             example_data = example_data.to(device)
+
+            # pass the output through the generator and normalize
             output = gen(example_data)
             output = normalize(output)
+
+            # normalize the original data
             example_data = normalize(example_data)
+
+            # pass the output and the original data through vgg
             features_output = vgg(output)
             features_content = vgg(example_data)
+
+            # calculate content and style loss as described in the paper
             content_loss = content_weight * criterion(features_output.relu2_2, features_content.relu2_2)
             style_loss = 0
             for ft, gr_style in zip(features_output, gr_norm):
@@ -124,6 +155,7 @@ def train(restore_path=None):
                 style_loss += criterion(gr, gr_style)
             style_loss = style_weight * style_loss
 
+            # propagate the loss
             loss = content_loss + style_loss
             loss.backward()
             agg_content_loss += content_loss.item()
@@ -140,48 +172,61 @@ def train(restore_path=None):
                 torch.save(gen.state_dict(), f'models/gen_ep{e}_b{idx}.pt')
             optimizer.step()
 
-
+    # save the final model
     torch.save(gen.state_dict(), f'gen.pt')
-    test = Image.open("COCO/data/2015-07-19 20:28:53.jpg")
-    test = test.transpose(1, 3, 256, 256)
-    stylized = gen(test)[0].detach().cpu.numpy()
-    stylized = stylized.transpose(1, 2, 0)
-    plt.imshow(stylized)
-    plt.show()
 
+''' load a model and use it to stylize an image
+Input:
+    None
+Output:
+    stylized image (3xhxw numpy array)
+'''
 def test():
+    # load the model in eval mode
     gen = Generator().to(device)
     gen.load_state_dict(torch.load(f'models/rain-princess_gen_all.pt', map_location=torch.device('cpu')))
     gen.eval()
+
+    # open the test image and transform into expected-size input for generator
     test = Image.open("grr.jpg")
     test = test.resize((256, 256))
     transform=torchvision.transforms.Compose([
         torchvision.transforms.ToTensor()]
     )
     test = transform(test)
+
+    # reshape the transformed test image back into a numpy array
     test = test[:3]
-    print(test.shape)
     test = test.reshape(1, 3, 256, 256)
+
+    # shift pixel values to lie between 0 and 255
     test = (test - torch.min(test))
     test = test / torch.max(test)
     test = test * 255
+
+    # display stylized image with correct hxwxc format for matplotlib
     stylized = gen(test)[0].detach().cpu().numpy()
     arr = stylized.transpose(1, 2, 0)
     new_arr = ((arr - arr.min()) * (1/(arr.max() - arr.min())))
-    print(new_arr)
-    print(np.amin(new_arr))
-    print(np.amax(new_arr))
     plt.imshow(new_arr)
     plt.show()
 
-
+''' Convert a video specified into a stylized video
+Input:
+    vieo_path (string): path to the video to be stylized
+Output:
+    stylized video
+'''
 def convert(video_path):
     gen = Generator().to(device)
     styles = ['rm', 'rain-princess', 'vangogh', 'mosaic']
+
+    # load each style's generator and run it on the video
     for style in styles:
         gen.load_state_dict(torch.load(f'models/{style}_gen_all.pt', map_location=torch.device('cpu')))
         gen.eval()
 
+        # transform the video into the expected input size
         vidcap = cv2.VideoCapture(video_path)
         success,test = vidcap.read()
         count = 0
@@ -192,34 +237,39 @@ def convert(video_path):
         )
 
         converted_video_frames = []
+        # read in each frame from the video
         while success:
+            # transform the frame into a tensor of the expected pixel range and shape
             test = Image.fromarray(test*255)
-            # test = test.resize((256, 256))
             test = transform(test) 
-            #print('Read a new frame: ', success)
             count += 1
             test = test.reshape(1, 3, 256, 256)
             test = (test - torch.min(test))
             test = test / torch.max(test)
             test = test * 255
+
+            #stylize the frame and convert it back to numpy
             stylized = gen(test)[0].detach().cpu().numpy()
             arr = stylized.transpose(1, 2, 0)
             new_arr = ((arr - arr.min()) * (1/(arr.max() - arr.min())))
             converted_video_frames.append(new_arr)
 
             success,test = vidcap.read()
+        # save all the frames in a npy file for easier reading
         print("done stylizing")
         np.save(f'{style}_frames.npy', converted_video_frames)
+    
+    # load back frames from the npy files
     for style in styles:
         frames = np.load(f'{style}_frames.npy')
-        print(style)
         out = cv2.VideoWriter(f'{style}_dogvid.avi', 0, 30, (256,256))
         for frame in frames:
             frame = frame*255
             frame = frame.astype(np.uint8)
             out.write(frame)
         out.release()
-    '''
+    
+    # plot all the frames as an animation (video)
     fig = plt.figure()
     for i in range(len(converted_video_frames)):
         frames.append([plt.imshow(converted_video_frames[i], animated=True)])
@@ -229,11 +279,9 @@ def convert(video_path):
     plt.axis('off')
     ani.save('mosaic_dogvid.mp4')
     plt.show()
-    '''
-
-
+    
 if __name__ == '__main__':
     restore_path = 'models/gen_ep0_b19999.pt'
-    #train(restore_path)
-    #test()
+    train(restore_path)
+    test()
     convert('videos/dogvid.mp4')

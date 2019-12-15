@@ -11,6 +11,8 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches
+''' Class to do style transfer
+'''
 class Generator(nn.Module):
     def __init__(self):
         super(Generator, self).__init__()
@@ -38,7 +40,6 @@ class Generator(nn.Module):
         self.conv6 = nn.Conv2d(32, 3, kernel_size=9, stride=1)
 
     def forward(self, x):
-        # print(x.shape)
         x = self.reflection_pad_4(x)
         x = self.conv1(x)
         x = self.bn1(x)
@@ -51,28 +52,26 @@ class Generator(nn.Module):
         x = self.conv3(x)
         x = self.bn3(x)
         x = F.relu(x)
-        # print(x.shape)
+
         x = self.res1(x)
         x = self.res2(x)
         x = self.res3(x)
         x = self.res4(x)
         x = self.res5(x)
-        # print(x.shape)
-        # x = self.reflection_pad_1(x)
+
         x = self.conv4(x)
         x = self.bn4(x)
         x = F.relu(x)
-        # print(x.shape)
-        # x = self.reflection_pad_1(x)
         x = self.conv5(x)
         x = self.bn5(x)
         x = F.relu(x)
-        # print(x.shape)
         x = self.reflection_pad_4(x)
         x = self.conv6(x)
-        # print(x.shape)
         return x
 
+''' NOT MINE: taken from https://github.com/pytorch/examples/tree/master/fast_neural_style after realizing
+the way they wrote this code was more modular
+'''
 class ResidualBlock(torch.nn.Module):
     """ResidualBlock
     introduced in: https://arxiv.org/abs/1512.03385
