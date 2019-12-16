@@ -184,7 +184,7 @@ Output:
 def test():
     # load the model in eval mode
     gen = Generator().to(device)
-    gen.load_state_dict(torch.load(f'models/rain-princess_gen_all.pt', map_location=torch.device('cpu')))
+    gen.load_state_dict(torch.load(f'models/vangogh_gen_all.pt', map_location=torch.device('cpu')))
     gen.eval()
 
     # open the test image and transform into expected-size input for generator
@@ -284,4 +284,4 @@ if __name__ == '__main__':
     restore_path = 'models/gen_ep0_b19999.pt'
     train(restore_path)
     test()
-    convert('videos/dogvid.mp4')
+    #convert('videos/dogvid.mp4')
