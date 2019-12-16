@@ -16,7 +16,7 @@ For example, given this content-image of a dog, and this style-image of Van Gogh
 
 The super resolution network training loop uses paired low resolution and high resolution images as training input. The network takes in low resolution images and tries to produce outputs that when run through VGG16 has a similar feature map to the high resolution paired training image. This code is still in progress.
 
-### Code
+### Code Files
 1. generator.py: file containing class definition for the generator implemented as described in the supplemental material
 2. superres.py: file containing class definition of a network that is supposed to create higher resolution images from low resolution images
 3. run.py: Defines a training loop for the generator network. This file also has a function to convert test images and test videos to stylized images and videos.
