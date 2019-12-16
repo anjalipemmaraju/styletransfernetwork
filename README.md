@@ -14,7 +14,7 @@ For example, given this content-image of a dog, and this style-image of Van Gogh
 <img src="https://github.com/anjalipemmaraju/styletransfernetwork/blob/master/content_images/original_dog.jpg" width="256"> <img src="https://github.com/anjalipemmaraju/styletransfernetwork/blob/master/style_images/vangogh.jpg" width="256">
 <img src="https://github.com/anjalipemmaraju/styletransfernetwork/blob/master/results/vangogh_dog.jpg" width="512">
 
-The super resolution network training loop uses paired low resolution and high resolution images as training input and again. The network takes in low resolution images and tries to produce outputs that when run through VGG16 has a similar feature map to the high resolution paired training image. This code is still in progress.
+The super resolution network training loop uses paired low resolution and high resolution images as training input. The network takes in low resolution images and tries to produce outputs that when run through VGG16 has a similar feature map to the high resolution paired training image. This code is still in progress.
 
 ### Code
 1. generator.py: file containing class definition for the generator implemented as described in the supplemental material
@@ -23,7 +23,7 @@ The super resolution network training loop uses paired low resolution and high r
 4. run_super_res.py: Defines a training loop for super resolution network and a test function to see if images are correctly brought to higher resolution.
 5. vgg.py: taken from the official codebase, class definition for the "discriminator". https://github.com/pytorch/examples/blob/master/fast_neural_style/neural_style/vgg.py
 
-### FOLDERS:
+### Folders
 1. models folder: contains some pre-trained generator models
 2. content_images folder: contains the image of the dog that was stylized
 3. style_images folder: contains images of some of the styles I used to train the generator
