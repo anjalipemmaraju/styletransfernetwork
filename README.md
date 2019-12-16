@@ -4,7 +4,7 @@
 Style Transfer Network implemented based on https://arxiv.org/abs/1603.08155 and https://cs.stanford.edu/people/jcjohns/papers/fast-style/fast-style-supp.pdf
 
 This implementation uses PyTorch: https://pytorch.org/tutorials/ . PyTorch is a machine learning framework.
-This code attempts to train a generator to produce stylized images in the style of a single input image. The generator is a network that tries to produce "good" stylized images. The "goodness" of the image is defined by the discriminator. In this case, the discriminator is a pre-trained VGG16 network downloaded from the PyTorch website. The generator is trained to minimize the difference between the discriminator's feature maps of its output and of the style image. Based on this difference, the generator's weights will get updated to try to minimize the loss as defined by the difference in the feature maps.
+This code attempts to train a generator network to produce stylized images in the style of a single input image. The generator is a network that tries to produce "good" stylized images. The "goodness" of the image is defined by the discriminator. In this case, the discriminator is a pre-trained VGG16 network downloaded from the PyTorch website. The generator is trained to minimize the difference between the discriminator's feature maps of its output and of the style image. Based on this difference, the generator's weights will get updated to try to minimize the loss as defined by the difference in the feature maps.
 
 For example, given this content-image of a dog, and this style-image of Van Gogh's starry night, the generator is trained to output an image that blends the content-image and the style-image.
 
