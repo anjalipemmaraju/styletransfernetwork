@@ -72,6 +72,8 @@ def train(restore_path=None):
     content_weight = 1e5
     style_weight = 1e10
     batch_size = 4
+
+    # not downloaded to Git because it is too big, download from COCO website
     data_path = 'COCO/'
 
     global mean
@@ -115,7 +117,7 @@ def train(restore_path=None):
     ])
 
     # open style image and turn into batch-sized tensor
-    style = Image.open("rickmorty-style.jpg")
+    style = Image.open("style_images/rickmorty-style.jpg")
     style = style_transform(style)
     style = style.to(device)
     style = normalize(style)
@@ -188,7 +190,7 @@ def test():
     gen.eval()
 
     # open the test image and transform into expected-size input for generator
-    test = Image.open("grr.jpg")
+    test = Image.open("content_images/original_dog.jpg")
     test = test.resize((256, 256))
     transform=torchvision.transforms.Compose([
         torchvision.transforms.ToTensor()]
@@ -281,7 +283,6 @@ def convert(video_path):
     plt.show()
     
 if __name__ == '__main__':
-    restore_path = 'models/gen_ep0_b19999.pt'
-    train(restore_path)
+    #train()
     test()
     #convert('videos/dogvid.mp4')
